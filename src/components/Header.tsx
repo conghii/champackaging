@@ -1,10 +1,13 @@
 import React from 'react';
-import { Box, Bell, User, Menu, Wand2 } from 'lucide-react';
+import { Box, Bell, User, Menu, Key } from 'lucide-react';
+import { useApp } from '../context/AppContext';
 
 export function Header({ onToggleSidebar, onTogglePromptCenter }: {
   onToggleSidebar?: () => void,
   onTogglePromptCenter?: () => void
 }) {
+  const { apiKey, setIsApiKeyModalOpen } = useApp();
+
   return (
     <header className="h-14 sm:h-16 flex items-center justify-between px-4 sm:px-6 bg-slate-900/60 backdrop-blur-md border-b border-white/10 z-50 shrink-0">
       <div className="flex items-center gap-3">
@@ -29,6 +32,20 @@ export function Header({ onToggleSidebar, onTogglePromptCenter }: {
         </nav>
         <div className="h-6 w-px bg-white/10 hidden sm:block"></div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setIsApiKeyModalOpen(true)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors ${apiKey
+                ? 'bg-slate-800/50 border-white/10 text-slate-300 hover:bg-white/5 hover:text-white'
+                : 'bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20'
+              }`}
+            title="Configure API Key"
+          >
+            <Key size={14} className={!apiKey ? 'animate-pulse' : ''} />
+            <span className="text-xs font-medium hidden sm:block">
+              {apiKey ? 'API Key' : 'Missing Key'}
+            </span>
+          </button>
+
           <div className="size-8 rounded-full bg-slate-800 border border-white/10 flex items-center justify-center cursor-pointer hover:bg-white/5 transition-colors relative">
             <Bell className="text-slate-400 size-4" />
             <span className="absolute top-0 right-0 size-2 bg-cyan-500 rounded-full shadow-[0_0_10px_rgba(6,182,212,0.5)]"></span>

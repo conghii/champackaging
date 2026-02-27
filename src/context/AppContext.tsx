@@ -1,8 +1,12 @@
-import React, { createContext, useContext, useState, ReactNode } from "react";
-import { CharacterDNA, analyzeImage, generateImage, generateText, morphPrompt } from "../lib/gemini";
+import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { CharacterDNA, analyzeImage, generateImage, generateText, morphPrompt, initGemini } from "../lib/gemini";
 import defaultPrompts from "../config/prompts.json";
 
 interface AppContextType {
+  apiKey: string | null;
+  setApiKey: (key: string) => void;
+  isApiKeyModalOpen: boolean;
+  setIsApiKeyModalOpen: (isOpen: boolean) => void;
   inputImage: string | null;
   setInputImage: (image: string) => void;
   dna: CharacterDNA | null;
@@ -103,7 +107,30 @@ function saveTemplates(templates: typeof DEFAULT_TEMPLATES) {
 export { DEFAULT_TEMPLATES };
 
 export function AppProvider({ children }: { children: ReactNode }) {
+  const [apiKey, setApiKeyState] = useState<string | null>(() => {
+    return localStorage.getItem("gemini_api_key") || null;
+  });
+
+  useEffect(() => {
+    if (apiKey) {
+      initGemini(apiKey);
+    }
+  }, [apiKey]);
+
+  const setApiKey = (key: string) => {
+    localStorage.setItem("gemini_api_key", key);
+    setApiKeyState(key);
+  };
+
   const [inputImage, setInputImage] = useState<string | null>(null);
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState<boolean>(!apiKey);
+
+  // Auto show modal if key goes missing
+  useEffect(() => {
+    if (!apiKey) {
+      setIsApiKeyModalOpen(true);
+    }
+  }, [apiKey]);
   const [dna, setDna] = useState<CharacterDNA | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
@@ -280,6 +307,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   return (
     <AppContext.Provider value={{
+      apiKey,
+      setApiKey,
+      isApiKeyModalOpen,
+      setIsApiKeyModalOpen,
       inputImage,
       setInputImage,
       dna,

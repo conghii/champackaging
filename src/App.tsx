@@ -3,6 +3,7 @@ import { Header } from './components/Header'
 import { Sidebar } from './components/Sidebar'
 import { Canvas } from './components/Canvas'
 import { AppProvider } from './context/AppContext'
+import { ApiKeyModal } from './components/ApiKeyModal'
 
 function AppContent() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -12,6 +13,8 @@ function AppContent() {
       <Header
         onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
       />
+
+      <ApiKeyModal />
 
       <div className="flex flex-1 overflow-hidden relative">
         {/* Left Sidebar (DNA) */}

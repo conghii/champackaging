@@ -1,8 +1,14 @@
 import { GoogleGenAI } from "@google/genai";
 
-// Initialize Gemini API
-const apiKey = process.env.GEMINI_API_KEY || "";
-const ai = new GoogleGenAI({ apiKey });
+let ai: GoogleGenAI | null = null;
+
+export function initGemini(apiKey: string) {
+  ai = new GoogleGenAI({ apiKey });
+}
+
+export function hasGeminiKey(): boolean {
+  return ai !== null;
+}
 
 export interface CharacterDNA {
   style: string;
@@ -41,6 +47,8 @@ export interface AnalysisResult {
 
 export async function analyzeImage(base64Image: string, templates: AnalysisResult["prompts"]): Promise<AnalysisResult> {
   try {
+    if (!ai) throw new Error("API Key not set. Please enter your Gemini API Key.");
+
     const model = "gemini-3-flash-preview";
     const prompt = `You are a SENIOR PACKAGING DESIGNER for the American gift market.
 
@@ -228,6 +236,8 @@ Return ONLY the JSON.`;
 
 export async function generateImage(prompt: string, aspectRatio: "1:1" | "3:4" | "4:3" | "16:9" | "9:16" = "1:1", referenceImage?: string, retries = 5): Promise<string> {
   try {
+    if (!ai) throw new Error("API Key not set. Please enter your Gemini API Key.");
+
     const model = "gemini-2.5-flash-image";
 
     // Build contents: include reference image if available
@@ -306,6 +316,8 @@ export async function generateImage(prompt: string, aspectRatio: "1:1" | "3:4" |
 
 export async function generateText(prompt: string, retries = 3): Promise<string> {
   try {
+    if (!ai) throw new Error("API Key not set. Please enter your Gemini API Key.");
+
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: prompt,
@@ -388,6 +400,8 @@ export function morphPrompt(template: string, dna: CharacterDNA): string {
  */
 export async function refinePrompt(currentPrompt: string, hint: string): Promise<string> {
   try {
+    if (!ai) throw new Error("API Key not set. Please enter your Gemini API Key.");
+
     const isReprompt = !hint || hint.trim() === "";
 
     // Different instructions depending on whether user provided a hint, or just clicked REPROMPT
