@@ -226,8 +226,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!dna) return;
 
     setProgress(0);
+    // Visual feedback: set all to generating immediately!
+    setIsGenerating({
+      topLid: true,
+      side1: true,
+      side2: true,
+      side3: true,
+      side4: true,
+      marketing: true,
+      card: true,
+      sticker: true,
+      jarLabel: true,
+      jarLabelNoChar: true,
+      lidLabel: true,
+    });
 
-    // Sequential execution to avoid rate limits
     const sides = [
       { key: "topLid", template: templates.topLid, ratio: "1:1" },
       { key: "side1", template: templates.side1, ratio: "3:4" },
@@ -242,21 +255,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
       { key: "lidLabel", template: templates.lidLabel, ratio: "1:1" },
     ] as const;
 
-    for (const side of sides) {
-      // Check if we should continue (in a real app we might want a cancel flag)
-      await generateSide(side.key, side.template, side.ratio as any);
+    // Fire all concurrently but stagger them slightly to prevent sudden spike
+    const promises = sides.map((side, index) => {
+      return new Promise<void>(resolve => {
+        setTimeout(async () => {
+          await generateSide(side.key, side.template, side.ratio as any);
 
-      // Auto-generate text content when card or side4 image is done
-      if (side.key === 'card') {
-        generateCardTextFn().catch(console.error);
-      } else if (side.key === 'side4') {
-        generateSide4TextFn().catch(console.error);
-      }
+          // Auto-generate text content when card or side4 image is done
+          if (side.key === 'card') {
+            generateCardTextFn().catch(console.error);
+          } else if (side.key === 'side4') {
+            generateSide4TextFn().catch(console.error);
+          }
 
-      // Add a delay to respect rate limits (1 request per few seconds is safer for image models)
-      await new Promise(resolve => setTimeout(resolve, 10000));
-    }
+          resolve();
+        }, index * 2000); // 2-second stagger
+      });
+    });
 
+    await Promise.all(promises);
     setProgress(100);
   };
 

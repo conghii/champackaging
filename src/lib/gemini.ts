@@ -271,6 +271,7 @@ export async function generateImage(prompt: string, aspectRatio: "1:1" | "3:4" |
         imageConfig: {
           aspectRatio,
         },
+        systemInstruction: `You are a pure flat vector graphic designer. YOUR MOST CRITICAL DIRECTIVE: The background MUST NEVER have any gradient, lighting, shadow, 3D element, texture, or pattern. It must be ONE EXACT HEX COLOR completely filling the canvas behind the subjects. IF YOU DRAW A GRADIENT OR SCENE, YOU FAIL.`,
       },
     });
 
@@ -376,9 +377,9 @@ export function morphPrompt(template: string, dna: CharacterDNA): string {
 
   // Prepend a strict color-lock + anatomy-lock preamble for image generation consistency
   const colorLock = `[CRITICAL MANDATORY COLOR RULES — DO NOT DEVIATE]\n` +
-    `Background fill: EXACTLY ${dna.backgroundColorHex}. Fill the ENTIRE background with this SINGLE SOLID FLAT color. ZERO gradients, ZERO variation, ZERO patterns.\n` +
+    `Background fill: EXACTLY ${dna.backgroundColorHex}. Fill the ENTIRE background with this SINGLE SOLID FLAT color. ZERO gradients, ZERO shadows, ZERO vignettes, ZERO lighting variations.\n` +
     `Title/heading text color: EXACTLY ${dna.textColor}.\n` +
-    `These colors are ABSOLUTE for all packaging panels. Use the hex code exactly as provided.\n\n`;
+    `These exact hex colors MUST be identically flat across all panels.\n\n`;
 
   const anatomyLock = `[MANDATORY ANATOMY RULES — DO NOT DEVIATE]\n` +
     `Character anatomy: ${dna.anatomy}\n` +
