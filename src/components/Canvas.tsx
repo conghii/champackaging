@@ -333,7 +333,8 @@ const SIDE_LABELS: Record<string, string> = {
 };
 
 export function Canvas() {
-  const { generatedImages, isGenerating, regenerateSide, templates, updateTemplate, cardText, isGeneratingCardText, generateCardText, side4Text, isGeneratingSide4Text, generateSide4Text } = useApp();
+  const { generatedImages, isGenerating, regenerateSide, templates, updateTemplate, cardText, isGeneratingCardText, generateCardText, side4Text, isGeneratingSide4Text, generateSide4Text, generateAll } = useApp();
+
   const [lightbox, setLightbox] = useState<{ image: string; label: string } | null>(null);
   const [editingSide, setEditingSide] = useState<keyof typeof DEFAULT_TEMPLATES | null>(null);
 
@@ -351,12 +352,55 @@ export function Canvas() {
     }
   };
 
+  const handleDownloadAll = async () => {
+    const imagesToDownload = Object.entries(generatedImages)
+      .filter(([_, url]) => url !== null)
+      .map(([key, url]) => ({ key, url }));
+
+    if (imagesToDownload.length === 0) return;
+
+    for (const { key, url } of imagesToDownload) {
+      const link = document.createElement('a');
+      link.href = url as string;
+      link.download = `${SIDE_LABELS[key] || key}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      await new Promise(resolve => setTimeout(resolve, 300));
+    }
+  };
+
   return (
     <>
       <section className="flex-1 flex flex-col relative z-10 min-w-0 bg-slate-900 overflow-hidden">
         {/* Scrollable Grid Area */}
         <div className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8 relative">
           <div className="max-w-[1600px] mx-auto flex flex-col gap-8">
+            {/* Global Action Buttons */}
+            <div className="flex items-center justify-between bg-slate-800/50 p-4 rounded-xl border border-white/5">
+              <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                <Sparkles className="size-4 text-indigo-400" />
+                Packaging AI Studio
+              </h2>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={generateAll}
+                  disabled={Object.values(isGenerating).some(Boolean)}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-xs font-bold text-white rounded-lg shadow-lg shadow-indigo-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <RefreshCw className={`size-3.5 ${Object.values(isGenerating).some(Boolean) ? 'animate-spin' : ''}`} />
+                  GENERATE ALL
+                </button>
+                <button
+                  onClick={handleDownloadAll}
+                  disabled={!Object.values(generatedImages).some(url => url !== null)}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white rounded-lg shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Download className="size-3.5" />
+                  DOWNLOAD ALL
+                </button>
+              </div>
+            </div>
 
             {/* Top Row: Top Lid + Marketing Mockup - Small size for hierarchy */}
             <div className="max-w-2xl mx-auto w-full">
