@@ -33,8 +33,8 @@ interface HeaderProps {
     folderTree: FolderNode[];
     onFolderClick: (folderId: string) => void;
     onFileClick: (file: AssetFile) => void;
-    gridSize?: 'small' | 'medium' | 'large';
-    onGridSizeChange?: (size: 'small' | 'medium' | 'large') => void;
+    gridSize?: number;
+    onGridSizeChange?: (size: number) => void;
 }
 
 const fileTypeIcons: Record<FileType, typeof HiOutlineDocument> = {
@@ -78,7 +78,7 @@ export default function Header({
     onManageLabelsClick, onManageAsinsClick, viewMode, onViewModeChange,
     onLogout, onToggleSidebar, isSidebarOpen,
     allFiles, folderTree, onFolderClick, onFileClick,
-    gridSize = 'medium', onGridSizeChange
+    gridSize = 5, onGridSizeChange
 }: HeaderProps) {
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [isFocused, setIsFocused] = useState(false);
@@ -330,19 +330,14 @@ export default function Header({
                 {/* Grid Size Slider (only visible in grid mode) */}
                 {viewMode === 'grid' && onGridSizeChange && (
                     <div className="flex items-center gap-2 bg-surface-3 border border-border rounded-xl px-3 py-2 shrink-0 pr-4">
-                        <span className="text-xs text-text-muted hidden sm:inline">Size:</span>
+                        <span className="text-xs text-text-muted hidden sm:inline">Cols: {gridSize}</span>
                         <input
                             type="range"
-                            min="1" max="3" step="1"
-                            title="Chỉnh kích thước Grid"
-                            value={gridSize === 'small' ? 1 : gridSize === 'medium' ? 2 : 3}
-                            onChange={(e) => {
-                                const val = parseInt(e.target.value);
-                                if (val === 1) onGridSizeChange('small');
-                                else if (val === 2) onGridSizeChange('medium');
-                                else onGridSizeChange('large');
-                            }}
-                            className="w-16 sm:w-20 h-1.5 bg-surface-2 rounded-lg appearance-none cursor-pointer accent-primary"
+                            min="2" max="10" step="1"
+                            title="Chỉnh số lượng cột Grid"
+                            value={gridSize}
+                            onChange={(e) => onGridSizeChange(parseInt(e.target.value))}
+                            className="w-16 sm:w-24 h-1.5 bg-surface-2 rounded-lg appearance-none cursor-pointer accent-primary"
                         />
                     </div>
                 )}

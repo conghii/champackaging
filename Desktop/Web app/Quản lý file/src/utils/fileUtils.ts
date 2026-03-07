@@ -35,10 +35,21 @@ export function suggestFileName(
     type: FileType,
     asin: string | null,
     variant: string,
-    purpose: string
+    purpose: string,
+    productName?: string | null
 ): string {
     const prefix = TYPE_PREFIX[type];
-    const asinPart = asin || 'GENERAL';
+
+    // Combine ASIN and Product Name safely
+    let asinPart = asin || 'GENERAL';
+    if (asin && productName) {
+        // e.g. B0DTQ34TKQ_Positive_Pickle
+        const sanitizedName = productName.replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+        if (sanitizedName) {
+            asinPart = `${asin}_${sanitizedName}`;
+        }
+    }
+
     const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const parts = [prefix, asinPart, variant, purpose, date].filter(Boolean);
     return parts.join('_').toUpperCase();

@@ -6,12 +6,15 @@ import {
     HiOutlineExternalLink,
 } from 'react-icons/hi';
 import { formatFileSize } from '../utils/fileUtils';
-import type { AssetFile, FileType, Label } from '../types';
+import type { AssetFile, FileType, Label, FolderNode } from '../types';
+import { HiOutlineFolder } from 'react-icons/hi';
 
 interface ListViewProps {
     files: AssetFile[];
+    subfolders?: FolderNode[];
     appLabels: Label[];
     onFileClick: (file: AssetFile) => void;
+    onFolderClick: (folderId: string) => void;
     isLoading: boolean;
 }
 
@@ -35,7 +38,7 @@ function formatDate(date: Date): string {
     });
 }
 
-export default function ListView({ files, appLabels, onFileClick, isLoading }: ListViewProps) {
+export default function ListView({ files, subfolders = [], appLabels, onFileClick, onFolderClick, isLoading }: ListViewProps) {
     const [sortKey, setSortKey] = useState<SortKey>('date');
     const [sortDir, setSortDir] = useState<SortDir>('desc');
 
@@ -89,7 +92,7 @@ export default function ListView({ files, appLabels, onFileClick, isLoading }: L
         );
     }
 
-    if (files.length === 0) {
+    if (files.length === 0 && subfolders.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center py-20 text-center animate-fade-in">
                 <span className="text-4xl mb-3">📁</span>
@@ -115,6 +118,40 @@ export default function ListView({ files, appLabels, onFileClick, isLoading }: L
                     Cập nhật <SortIcon col="date" />
                 </button>
             </div>
+
+            {/* Subfolders list */}
+            {subfolders.length > 0 && (
+                <div className="border-b border-border/30">
+                    {subfolders.map(folder => (
+                        <div
+                            key={folder.id}
+                            onClick={() => onFolderClick(folder.id)}
+                            className="grid grid-cols-[1fr_80px_90px_140px] gap-2 px-4 py-2.5 
+                                hover:bg-surface-3/50 cursor-pointer transition-all duration-100 group border-b border-border/10"
+                        >
+                            <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-8 h-8 rounded-md shrink-0 flex items-center justify-center bg-primary/10">
+                                    <HiOutlineFolder size={16} className="text-primary" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-sm text-text-secondary group-hover:text-white truncate transition-colors font-medium">
+                                        {folder.name}
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex items-center">
+                                <span className="text-[10px] text-text-muted uppercase font-semibold">Folder</span>
+                            </div>
+                            <div className="flex items-center justify-end">
+                                <span className="text-xs text-text-muted font-mono">--</span>
+                            </div>
+                            <div className="flex items-center justify-end">
+                                <span className="text-xs text-text-muted">--</span>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
 
             {/* Grouped file list */}
             <div className="divide-y divide-border/30">

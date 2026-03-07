@@ -15,9 +15,10 @@ import UploadModal from './components/UploadModal';
 import AsinManager from './components/AsinManager.jsx';
 import AddLinkModal from './components/AddLinkModal';
 import type { LinkMeta } from './components/AddLinkModal';
-import FilePreview from './components/FilePreview';
+import FilePreviewOverlay from './components/FilePreviewOverlay'; // Changed from FilePreview
 import LoginScreen from './components/LoginScreen';
 import LabelManager from './components/LabelManager';
+import Dashboard from './components/Dashboard';
 import { mockFiles, mockFolderTree, mockUser } from './services/mockData';
 import { ensureRootFolder, buildFolderTree, createFolder as driveCreateFolder, renameFile as driveRename, deleteFile as driveDelete, uploadFile as driveUpload, listFiles as driveListFiles, listAllFiles, saveLink as driveSaveLink, loadAppConfig, saveAppConfig } from './services/driveService.ts';
 import type { DriveFileItem } from './services/driveService';
@@ -103,7 +104,6 @@ export default function App() {
 
   // Preview state
   const [previewFile, setPreviewFile] = useState<AssetFile | null>(null);
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   // Label manager state
   const [showLabelManager, setShowLabelManager] = useState(false);
@@ -115,12 +115,10 @@ export default function App() {
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
 
   // Grid size state
-  const [gridSize, setGridSize] = useState<'small' | 'medium' | 'large'>(() => {
-    return (localStorage.getItem('app_grid_size') as 'small' | 'medium' | 'large') || 'medium';
-  });
+  const [gridSize, setGridSize] = useState<number>(5);
 
   useEffect(() => {
-    localStorage.setItem('app_grid_size', gridSize);
+    localStorage.setItem('app_grid_size', gridSize.toString());
   }, [gridSize]);
 
   // Bulk selection state
@@ -141,7 +139,7 @@ export default function App() {
 
   const handleBulkDelete = useCallback(async () => {
     if (!user?.accessToken || selectedFileIds.size === 0) return;
-    const confirmed = window.confirm(`Xóa ${selectedFileIds.size} file đã chọn?`);
+    const confirmed = window.confirm(`Xóa ${selectedFileIds.size} file đã chọn ? `);
     if (!confirmed) return;
     for (const fileId of selectedFileIds) {
       try {
@@ -345,6 +343,22 @@ export default function App() {
     }
   }, [buildBreadcrumb, user, loadFilesFromFolder]);
 
+  // Flat folders for new Sidebar.jsx (Moved up to prevent use-before-declaration)
+  const flatFolders = useMemo(() => {
+    const flat = flattenTree(folderTree);
+    // Compute file counts per folder
+    const counts: Record<string, number> = {};
+    allFiles.forEach(f => {
+      if (f.driveFolderId) counts[f.driveFolderId] = (counts[f.driveFolderId] || 0) + 1;
+    });
+    return flat.map(f => ({ ...f, fileCount: counts[f.id] || 0 }));
+  }, [folderTree, allFiles]);
+
+  // Flat folder list for BulkActionBar move picker
+  const folderListForPicker = useMemo(() =>
+    flatFolders.map(f => ({ id: f.id, name: f.name, path: f.name })),
+    [flatFolders]);
+
   // ── Folder CRUD ───────────────────────────────────────────────────
   const updateTreeNode = useCallback(
     (nodes: FolderNode[], id: string, updater: (n: FolderNode) => FolderNode | null): FolderNode[] => {
@@ -381,7 +395,7 @@ export default function App() {
         console.error('Drive rename failed:', err);
       }
     }
-  }, [updateTreeNode, user]);
+  }, [updateTreeNode, user, flatFolders]);
 
   const handleDeleteFolder = useCallback(async (folderId: string, _folderName: string) => {
     // Optimistic UI update
@@ -471,7 +485,7 @@ export default function App() {
         );
       }
     }
-  }, [updateTreeNode, user]);
+  }, [updateTreeNode, user, flatFolders]);
 
   const handleBreadcrumbNav = useCallback((index: number) => {
     if (index === -1) {
@@ -503,42 +517,58 @@ export default function App() {
   }, []);
 
   // ── Filtered files ────────────────────────────────────────────────
-  const filteredFiles = useMemo(() => {
-    let files = allFiles.filter((f) => f.status === 'active');
+  const displayFolders = useMemo(() => {
+    if (activeFolderId === 'starred') {
+      const getStarred = (nodes: FolderNode[]): FolderNode[] => {
+        let starred: FolderNode[] = [];
+        nodes.forEach(n => {
+          if (n.isStarred) starred.push(n);
+          starred = [...starred, ...getStarred(n.children)];
+        });
+        return starred;
+      };
+      return getStarred(folderTree);
+    }
+    if (searchQuery || activeFolderId) return [];
+    return folderTree;
+  }, [folderTree, searchQuery, activeFolderId]);
 
-    // Folder filter
-    if (activeFolderId) {
-      files = files.filter((f) => f.driveFolderId === activeFolderId);
+  const filteredFiles = useMemo(() => {
+    let list = allFiles;
+
+    if (activeFolderId === 'starred') {
+      list = list.filter(f => f.isStarred);
+    } else if (activeFolderId) {
+      list = list.filter(f => f.driveFolderId === activeFolderId);
     }
 
     // Search — match name, originalName, ASIN, product name, tags, mimeType
-    if (debouncedQuery) {
-      const q = debouncedQuery.toLowerCase();
-      files = files.filter((f) =>
-        f.name.toLowerCase().includes(q) ||
-        (f.originalName && f.originalName.toLowerCase().includes(q)) ||
-        f.tags.some((t) => t.toLowerCase().includes(q)) ||
-        (f.asin && f.asin.toLowerCase().includes(q)) ||
-        (f.productName && f.productName.toLowerCase().includes(q)) ||
-        f.type.toLowerCase().includes(q) ||
-        (f.mimeType && f.mimeType.toLowerCase().includes(q)) ||
-        (f.category && f.category.toLowerCase().includes(q))
-      );
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter((f) => {
+        const matchName = f.name.toLowerCase().includes(q) || (f.originalName && f.originalName.toLowerCase().includes(q));
+        const matchAsin = f.asin?.toLowerCase().includes(q);
+        const matchProductName = f.productName?.toLowerCase().includes(q);
+        const matchCategory = f.category?.toLowerCase().includes(q);
+        const matchTags = f.tags.some((t) => t.toLowerCase().includes(q));
+        const matchMime = f.mimeType?.toLowerCase().includes(q);
+        return matchName || matchAsin || matchProductName || matchCategory || matchTags || matchMime;
+      });
     }
 
     // Type filter
     if (activeType !== 'all') {
-      files = files.filter((f) => f.type === activeType);
+      list = list.filter((f) => f.type === activeType);
     }
 
     // Tag filter
     if (activeTags.length > 0) {
-      files = files.filter((f) => activeTags.some((t) => f.tags.includes(t)));
+      list = list.filter((f) => activeTags.every((t) => f.tags.includes(t)));
     }
 
     // ASIN filter
     if (activeAsin) {
-      files = files.filter((f) => f.asin === activeAsin);
+      list = list.filter((f) => f.asin === activeAsin);
     }
 
     // Date range filter
@@ -551,13 +581,13 @@ export default function App() {
         '90d': 90 * 24 * 60 * 60 * 1000,
       };
       const cutoff = now - (ms[activeDateRange] || 0);
-      files = files.filter((f) => new Date(f.updatedAt).getTime() >= cutoff);
+      list = list.filter((f) => new Date(f.updatedAt).getTime() >= cutoff);
     }
 
     // Size range filter
     if (activeSizeRange) {
       const MB = 1024 * 1024;
-      files = files.filter((f) => {
+      list = list.filter((f) => {
         switch (activeSizeRange) {
           case 'small': return f.size < 1 * MB;
           case 'medium': return f.size >= 1 * MB && f.size < 10 * MB;
@@ -568,8 +598,8 @@ export default function App() {
       });
     }
 
-    return files;
-  }, [allFiles, activeFolderId, debouncedQuery, activeType, activeTags, activeAsin, activeDateRange, activeSizeRange]);
+    return list;
+  }, [allFiles, searchQuery, activeType, activeTags, activeAsin, activeDateRange, activeSizeRange, activeFolderId]);
 
   // All unique tags
   const allTags = useMemo(() => {
@@ -577,22 +607,6 @@ export default function App() {
     allFiles.forEach((f) => f.tags.forEach((t) => tags.add(t)));
     return Array.from(tags).sort();
   }, [allFiles]);
-
-  // Flat folders for new Sidebar.jsx
-  const flatFolders = useMemo(() => {
-    const flat = flattenTree(folderTree);
-    // Compute file counts per folder
-    const counts: Record<string, number> = {};
-    allFiles.forEach(f => {
-      if (f.driveFolderId) counts[f.driveFolderId] = (counts[f.driveFolderId] || 0) + 1;
-    });
-    return flat.map(f => ({ ...f, fileCount: counts[f.id] || 0 }));
-  }, [folderTree, allFiles]);
-
-  // Flat folder list for BulkActionBar move picker
-  const folderListForPicker = useMemo(() =>
-    flatFolders.map(f => ({ id: f.id, name: f.name, path: f.name })),
-    [flatFolders]);
 
   // handleMoveFolder — update tree when folder dragged to new parent
   const handleMoveFolder = useCallback((folderId: string, newParentId: string) => {
@@ -816,11 +830,9 @@ export default function App() {
   }, [activeFolderId, user]);
   const handleFileClick = useCallback((file: AssetFile) => {
     setPreviewFile(file);
-    setIsPreviewOpen(true);
   }, []);
 
   const handlePreviewClose = useCallback(() => {
-    setIsPreviewOpen(false);
     setPreviewFile(null);
   }, []);
 
@@ -860,9 +872,23 @@ export default function App() {
 
   // ── Keyboard shortcuts ────────────────────────────────────────────
   useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (isPreviewOpen) handlePreviewClose();
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger if inside an input or textarea
+      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
+        return;
+      }
+
+      if (e.code === 'Space') {
+        e.preventDefault();
+        if (previewFile) {
+          setPreviewFile(null);
+        } else if (selectedFileIds.size === 1) {
+          const fileId = Array.from(selectedFileIds)[0];
+          const file = allFiles.find(f => f.id === fileId);
+          if (file) setPreviewFile(file);
+        }
+      } else if (e.code === 'Escape') {
+        if (previewFile) setPreviewFile(null);
         else if (isUploadModalOpen) handleUploadClose();
       }
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -870,9 +896,10 @@ export default function App() {
         document.querySelector<HTMLInputElement>('input[placeholder*="Search"]')?.focus();
       }
     };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [isPreviewOpen, isUploadModalOpen, handlePreviewClose, handleUploadClose]);
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedFileIds, allFiles, previewFile, isUploadModalOpen, handleUploadClose]);
 
   // ── Loading simulation ────────────────────────────────────────────
   useEffect(() => {
@@ -942,6 +969,18 @@ export default function App() {
     }
   }, [allFiles, user]);
 
+  const handleToggleFileStar = useCallback((fileId: string) => {
+    setAllFiles(prev => prev.map(f => f.id === fileId ? { ...f, isStarred: !f.isStarred } : f));
+  }, []);
+
+  const handleToggleFolderStar = useCallback((folderId: string) => {
+    setFolderTree(prev => {
+      const update = (nodes: FolderNode[]): FolderNode[] =>
+        nodes.map(n => n.id === folderId ? { ...n, isStarred: !n.isStarred } : { ...n, children: update(n.children) });
+      return update(prev);
+    });
+  }, []);
+
   const handleLogin = useCallback(async () => {
     setIsAuthLoading(true);
     try {
@@ -967,7 +1006,7 @@ export default function App() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex flex-col h-screen overflow-hidden">
       <Header
         user={user}
         searchQuery={searchQuery}
@@ -1008,6 +1047,7 @@ export default function App() {
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
           folders={flatFolders}
+          appAsins={appConfig.asins || []}
           activeFolderId={activeFolderId}
           onSelectFolder={(folderId: string) => {
             if (!folderId) {
@@ -1111,66 +1151,113 @@ export default function App() {
             />
           </div>
 
-          {/* File gallery / Kanban / List view */}
-          {viewMode === 'kanban' ? (
-            <KanbanBoard
-              files={filteredFiles}
-              columns={appConfig.kanbanColumns || []}
-              onMoveFile={(fileId: string, newStatus: string) => {
-                setAllFiles(prev => prev.map(f =>
-                  f.id === fileId ? { ...f, kanbanStatus: newStatus as KanbanStatus } : f
-                ));
-                const file = allFiles.find(f => f.id === fileId);
-                if (file && user?.accessToken) {
-                  const descJson = {
-                    tags: file.tags,
-                    kanbanStatus: newStatus,
-                    isLink: file.type === 'link',
-                    url: file.webViewLink,
-                    linkType: file.category,
-                  };
-                  fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?supportsAllDrives=true`, {
-                    method: 'PATCH',
-                    headers: {
-                      Authorization: `Bearer ${user.accessToken}`,
-                      'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ description: JSON.stringify(descJson) }),
-                  }).catch(err => console.error('Failed to update kanban status on Drive:', err));
+          {/* Calculate current subfolders */}
+          {(() => {
+            const findSubfolders = (nodes: FolderNode[], targetId: string | null): FolderNode[] => {
+              if (targetId === null) return nodes; // Root level: show all top-level folders
+              if (targetId === 'starred') return []; // In starred view, displayFolders handles it
+              for (const n of nodes) {
+                if (n.id === targetId) return n.children;
+                const found = findSubfolders(n.children, targetId);
+                if (found.length > 0) return found;
+              }
+              return [];
+            };
+
+            // Special case for root level when activeFolderId is null
+            const currentSubfolders = findSubfolders(folderTree, activeFolderId);
+
+            const onFolderClick = (folderId: string) => {
+              const findNode = (nodes: FolderNode[]): FolderNode | null => {
+                for (const n of nodes) {
+                  if (n.id === folderId) return n;
+                  const found = findNode(n.children);
+                  if (found) return found;
                 }
-              }}
-              onUpdateColumns={(newColumns: any[]) => {
-                setAppConfig(prev => {
-                  const newConfig = { ...prev, kanbanColumns: newColumns };
-                  if (user?.accessToken) saveConfigToDrive(user.accessToken, newConfig);
-                  return newConfig;
-                });
-              }}
-              onFileClick={handleFileClick}
-            />
-          ) : viewMode === 'list' ? (
-            <ListView
-              files={filteredFiles}
-              appLabels={appConfig.labels || []}
-              onFileClick={handleFileClick}
-              isLoading={isLoading}
-            />
-          ) : (
-            <FileGallery
-              files={filteredFiles}
-              appLabels={appConfig.labels || []}
-              onFileClick={handleFileClick}
-              onFileDrop={handleFileDrop}
-              onFileRename={handleFileRename}
-              onFileDelete={handleFileDelete}
-              onUpdateTags={handleUpdateFileTags}
-              onManageLabels={() => setShowLabelManager(true)}
-              selectedFileIds={selectedFileIds}
-              onToggleSelect={handleToggleSelect}
-              isLoading={isLoading}
-              gridSize={gridSize}
-            />
-          )}
+                return null;
+              };
+              const folder = findNode(folderTree);
+              if (folder) handleFolderClick(folder);
+            };
+
+            return (
+              <>
+                {/* File gallery / Kanban / List view */}
+                {activeFolderId === 'dashboard' ? (
+                  <Dashboard
+                    files={allFiles.filter(f => f.status === 'active')}
+                    folders={folderTree}
+                    onFileClick={handleFileClick}
+                    onFolderClick={onFolderClick}
+                  />
+                ) : viewMode === 'kanban' ? (
+                  <KanbanBoard
+                    files={filteredFiles}
+                    columns={appConfig.kanbanColumns || []}
+                    onMoveFile={(fileId: string, newStatus: string) => {
+                      setAllFiles(prev => prev.map(f =>
+                        f.id === fileId ? { ...f, kanbanStatus: newStatus as KanbanStatus } : f
+                      ));
+                      const file = allFiles.find(f => f.id === fileId);
+                      if (file && user?.accessToken) {
+                        const descJson = {
+                          tags: file.tags,
+                          kanbanStatus: newStatus,
+                          isLink: file.type === 'link',
+                          url: file.webViewLink,
+                          linkType: file.category,
+                        };
+                        fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?supportsAllDrives=true`, {
+                          method: 'PATCH',
+                          headers: {
+                            Authorization: `Bearer ${user.accessToken}`,
+                            'Content-Type': 'application/json',
+                          },
+                          body: JSON.stringify({ description: JSON.stringify(descJson) }),
+                        }).catch(err => console.error('Failed to update kanban status on Drive:', err));
+                      }
+                    }}
+                    onUpdateColumns={(newColumns: any[]) => {
+                      setAppConfig(prev => {
+                        const newConfig = { ...prev, kanbanColumns: newColumns };
+                        if (user?.accessToken) saveConfigToDrive(user.accessToken, newConfig);
+                        return newConfig;
+                      });
+                    }}
+                    onFileClick={handleFileClick}
+                  />
+                ) : viewMode === 'list' ? (
+                  <ListView
+                    files={filteredFiles}
+                    subfolders={currentSubfolders}
+                    appLabels={appConfig.labels || []}
+                    onFileClick={handleFileClick}
+                    onFolderClick={onFolderClick}
+                    isLoading={isLoading}
+                  />
+                ) : (
+                  <FileGallery
+                    subfolders={displayFolders.length > 0 ? displayFolders : currentSubfolders}
+                    files={filteredFiles}
+                    appLabels={appConfig.labels || []}
+                    onFileClick={handleFileClick}
+                    onFolderClick={onFolderClick}
+                    onFileDrop={handleFileDrop}
+                    onFileRename={handleFileRename}
+                    onFileDelete={handleFileDelete}
+                    onUpdateTags={handleUpdateFileTags}
+                    onManageLabels={() => setShowLabelManager(true)}
+                    selectedFileIds={selectedFileIds}
+                    onToggleSelect={handleToggleSelect}
+                    isLoading={isLoading}
+                    gridSize={gridSize}
+                    onToggleFileStar={handleToggleFileStar}
+                    onToggleFolderStar={handleToggleFolderStar}
+                  />
+                )}
+              </>
+            );
+          })()}
 
           {/* Footer stats */}
           {filteredFiles.length > 0 && (
@@ -1266,11 +1353,12 @@ export default function App() {
         onManageAsins={() => setShowAsinManager(true)}
       />
 
-      <FilePreview
-        file={previewFile}
-        isOpen={isPreviewOpen}
-        onClose={handlePreviewClose}
-      />
+      {previewFile && (
+        <FilePreviewOverlay
+          file={previewFile}
+          onClose={handlePreviewClose}
+        />
+      )}
 
       <AddLinkModal
         isOpen={isAddLinkOpen}
@@ -1294,20 +1382,47 @@ export default function App() {
           id: a.id || a.code || a.asin || `asin-${i}`,
           code: a.code || a.asin || '',
           productName: a.productName || a.name || '',
+          category: (a as any).category || '',
           fileCount: allFiles.filter(f => f.asin === (a.code || a.asin)).length,
         })) as any}
         onClose={() => setShowAsinManager(false)}
-        onCreateAsin={(code: string, productName: string) => {
-          const newAsin: AsinItem = { id: `asin-${Date.now()}`, asin: code, code, name: productName, productName };
+        onCreateAsin={(code: string, productName: string, category: string = '') => {
+          const newAsin: AsinItem = {
+            id: `asin-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+            asin: code,
+            code,
+            name: productName,
+            productName,
+            category
+          } as any;
           handleSaveAsins([...(appConfig.asins || []), newAsin]);
+        }}
+        onImportAsins={(rows: any[]) => {
+          const newAsins = rows.map((r, i) => ({
+            id: `asin-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 6)}`,
+            asin: r.code,
+            code: r.code,
+            name: r.productName,
+            productName: r.productName,
+            category: r.category || ''
+          }));
+          handleSaveAsins([...(appConfig.asins || []), ...newAsins] as any);
         }}
         onUpdateAsin={(asinId: string, updates: any) => {
           handleSaveAsins((appConfig.asins || []).map(a =>
-            (a.id || a.code || a.asin || '') === asinId ? { ...a, name: updates.productName || a.name, productName: updates.productName || a.productName } : a
+            (a.id || a.code || a.asin || '') === asinId ? {
+              ...a,
+              name: updates.productName !== undefined ? updates.productName : a.name,
+              productName: updates.productName !== undefined ? updates.productName : a.productName,
+              category: updates.category !== undefined ? updates.category : (a as any).category
+            } : a
           ));
         }}
         onDeleteAsin={(asinId: string) => {
           handleSaveAsins((appConfig.asins || []).filter(a => (a.id || a.code || a.asin || '') !== asinId));
+        }}
+        onClearAllAsins={() => {
+          handleSaveAsins([]);
         }}
       />
     </div>

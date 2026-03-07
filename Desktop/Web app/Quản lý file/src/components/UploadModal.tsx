@@ -6,7 +6,7 @@ import {
     HiOutlineDocumentText, HiOutlineDocument, HiOutlineClipboardCopy,
     HiOutlineSearch, HiOutlineChevronDown,
 } from 'react-icons/hi';
-import { detectFileType, formatFileSize } from '../utils/fileUtils';
+import { detectFileType, formatFileSize, suggestFileName } from '../utils/fileUtils';
 import type { FileType, Label, AsinItem } from '../types';
 
 interface UploadModalProps {
@@ -94,13 +94,16 @@ export default function UploadModal({
     useEffect(() => {
         if (currentFile) {
             const type = detectFileType(currentFile);
-            const prefix = type === 'image' ? 'IMG' : type === 'video' ? 'VID' : type === 'text' ? 'TXT' : type.toUpperCase();
-            const asinPart = selectedAsin || 'GENERAL';
-            const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
             const ext = currentFile.name.split('.').pop() || '';
-            setFileName(`${prefix}_${asinPart}_${date}.${ext}`);
+            let productName = null;
+            if (selectedAsin) {
+                const a = appAsins.find(p => (p.asin || p.code) === selectedAsin);
+                if (a) productName = a.productName || a.name || null;
+            }
+            const nameBase = suggestFileName(type, selectedAsin || null, '', '', productName);
+            setFileName(`${nameBase}.${ext}`.replace(/_+/g, '_').replace(/_\./g, '.'));
         }
-    }, [currentFile, selectedAsin]);
+    }, [currentFile, selectedAsin, appAsins]);
 
     // ── Reset state when files change ──
     useEffect(() => {

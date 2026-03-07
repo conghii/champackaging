@@ -5,7 +5,7 @@ import {
     RefreshCw, Check, ChevronsDownUp, ChevronsUpDown,
     Briefcase, GraduationCap, Archive, Image as ImageIcon,
     Video, FileText, Key, Layout, Users, BarChart3, Camera,
-    Palette, Truck, ExternalLink
+    Palette, Truck, ExternalLink, Star
 } from 'lucide-react';
 
 /* ═════════════════════════════════════════════════════════════
@@ -13,7 +13,7 @@ import {
    ═════════════════════════════════════════════════════════════ */
 
 if (typeof document !== 'undefined') {
-    const STYLE_ID = 'sidebar-v2-styles';
+    const STYLE_ID = 'sidebar-v3-styles';
     if (!document.getElementById(STYLE_ID)) {
         const s = document.createElement('style');
         s.id = STYLE_ID;
@@ -26,6 +26,8 @@ if (typeof document !== 'undefined') {
       .sb-scroll::-webkit-scrollbar-track { background:transparent; }
       .sb-scroll::-webkit-scrollbar-thumb { background:#3a3a5a; border-radius:3px; }
       .sb-scroll::-webkit-scrollbar-thumb:hover { background:#5a5a7a; }
+      .sb-folder-row .sb-drive-link { opacity: 0 !important; transform: scale(0.8) !important; transition: all 200ms ease !important; visibility: hidden !important; }
+      .sb-folder-row:hover .sb-drive-link { opacity: 1 !important; transform: scale(1) !important; visibility: visible !important; }
     `;
         document.head.appendChild(s);
     }
@@ -245,7 +247,7 @@ function HighlightText({ text, query }) {
    ═════════════════════════════════════════════════════════════ */
 
 function FolderItem({
-    node, depth, activeFolderId, expandedSet, searchQuery,
+    node, depth, activeFolderId, expandedSet, searchQuery, appAsins,
     onSelect, onToggle, onContextMenu, editingId, onRenameSubmit, onRenameCancel,
     onKeyNav, flatIndex, focusedIndex,
 }) {
@@ -302,6 +304,7 @@ function FolderItem({
                 role="treeitem"
                 aria-expanded={hasChildren ? isExpanded : undefined}
                 aria-selected={isActive}
+                className="sb-folder-row"
                 style={S.folderRow(isActive, depth)}
                 onClick={handleClick}
                 onContextMenu={(e) => onContextMenu(e, node)}
@@ -327,31 +330,52 @@ function FolderItem({
 
                 {/* Name / Edit */}
                 {isEditing ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1, minWidth: 0 }}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 0, paddingRight: 4 }}
                         onClick={(e) => e.stopPropagation()}>
-                        <input
-                            ref={editRef}
-                            value={editName}
-                            onChange={(e) => setEditName(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleRename();
-                                if (e.key === 'Escape') onRenameCancel();
-                                e.stopPropagation();
-                            }}
-                            onBlur={handleRename}
-                            style={{
-                                flex: 1, minWidth: 0, fontSize: 12, padding: '2px 6px',
-                                borderRadius: 4, border: '1px solid #E8830C',
-                                background: '#12121f', color: '#e0e0e0', outline: 'none',
-                                fontFamily: 'inherit',
-                            }}
-                        />
-                        <button onClick={handleRename} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#22c55e', display: 'flex', padding: 0 }}>
-                            <Check size={12} />
-                        </button>
-                        <button onClick={(e) => { e.stopPropagation(); onRenameCancel(); }} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#6b7280', display: 'flex', padding: 0 }}>
-                            <X size={10} />
-                        </button>
+                        {appAsins?.length > 0 && (
+                            <select
+                                onClick={e => e.stopPropagation()}
+                                onMouseDown={e => e.stopPropagation()}
+                                onChange={(e) => {
+                                    if (!e.target.value) return;
+                                    const asin = appAsins.find(a => (a.id || a.code) === e.target.value);
+                                    if (asin) {
+                                        const catPrefix = asin.category ? `[${asin.category}] ` : '';
+                                        setEditName(`${catPrefix}${asin.code} - ${asin.productName || ''}`.trim());
+                                        setTimeout(() => { editRef.current?.focus(); editRef.current?.select(); }, 50);
+                                    }
+                                }}
+                                style={{ width: '100%', fontSize: 10, padding: '2px 4px', borderRadius: 4, background: '#12121f', color: '#9ca3af', border: '1px solid #2a2a3e', outline: 'none' }}
+                            >
+                                <option value="">Chọn ASIN...</option>
+                                {appAsins.map(a => <option key={a.id || a.code} value={a.id || a.code}>{a.code} - {a.productName || ''}</option>)}
+                            </select>
+                        )}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, width: '100%' }}>
+                            <input
+                                ref={editRef}
+                                value={editName}
+                                title={editName}
+                                onChange={(e) => setEditName(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleRename();
+                                    if (e.key === 'Escape') onRenameCancel();
+                                    e.stopPropagation();
+                                }}
+                                style={{
+                                    flex: 1, minWidth: 0, width: '100%', fontSize: 12, padding: '2px 6px',
+                                    borderRadius: 4, border: '1px solid #E8830C',
+                                    background: '#12121f', color: '#e0e0e0', outline: 'none',
+                                    fontFamily: 'inherit',
+                                }}
+                            />
+                            <button onMouseDown={(e) => { e.preventDefault(); handleRename(); }} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#22c55e', display: 'flex', padding: 0 }}>
+                                <Check size={12} />
+                            </button>
+                            <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); onRenameCancel(); }} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#6b7280', display: 'flex', padding: 0 }}>
+                                <X size={10} />
+                            </button>
+                        </div>
                     </div>
                 ) : (
                     <span style={S.folderName(isActive)}>
@@ -362,6 +386,27 @@ function FolderItem({
                 {/* File count badge */}
                 {!isEditing && node.fileCount > 0 && (
                     <span style={S.badge}>{node.fileCount}</span>
+                )}
+
+                {/* External Link to Drive */}
+                {!isEditing && (node.driveId || node.id) && (
+                    <a
+                        href={`https://drive.google.com/drive/folders/${node.driveId || node.id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="sb-drive-link"
+                        onClick={(e) => { e.stopPropagation(); }}
+                        style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            color: '#6b7280',
+                            marginLeft: '4px', flexShrink: 0,
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.color = '#38bdf8'; e.currentTarget.style.background = 'rgba(56, 189, 248, 0.1)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.color = '#6b7280'; e.currentTarget.style.background = 'transparent'; }}
+                        title="Mở thư mục này trên Google Drive"
+                    >
+                        <ExternalLink size={11} />
+                    </a>
                 )}
             </div>
 
@@ -376,6 +421,7 @@ function FolderItem({
                             activeFolderId={activeFolderId}
                             expandedSet={expandedSet}
                             searchQuery={searchQuery}
+                            appAsins={appAsins}
                             onSelect={onSelect}
                             onToggle={onToggle}
                             onContextMenu={onContextMenu}
@@ -468,6 +514,7 @@ function MoveDialog({ folders, currentId, onMove, onClose }) {
 
 export default function Sidebar({
     folders = [],
+    appAsins = [],
     activeFolderId,
     onSelectFolder,
     onCreateFolder,
@@ -750,18 +797,38 @@ export default function Sidebar({
                     ) : (
                         <span style={{ width: 6, height: 6, borderRadius: '50%', background: syncDot, flexShrink: 0 }} />
                     )}
-                    <span style={{ color: syncStatus === 'error' ? '#ef4444' : '#6b7280', cursor: syncStatus === 'error' ? 'pointer' : 'default' }}>
+                    <span style={S.syncLabel}>
                         {syncLabel}
                     </span>
                 </div>
 
-                {/* ── Home button ── */}
                 <div style={{ padding: '6px 6px 2px' }}>
+                    {/* ── Dashboard button ── */}
+                    <div
+                        onClick={() => handleSelect('dashboard')}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: 8,
+                            padding: '8px 10px', borderRadius: 8, cursor: 'pointer',
+                            background: activeFolderId === 'dashboard' ? '#16213e' : 'transparent',
+                            borderLeft: activeFolderId === 'dashboard' ? '3px solid #E8830C' : '3px solid transparent',
+                            transition: 'all 150ms',
+                        }}
+                        onMouseEnter={(e) => { if (activeFolderId !== 'dashboard') e.currentTarget.style.background = '#1a1a40'; }}
+                        onMouseLeave={(e) => { if (activeFolderId !== 'dashboard') e.currentTarget.style.background = 'transparent'; }}
+                    >
+                        <Layout size={14} color={activeFolderId === 'dashboard' ? '#E8830C' : '#6b7280'} />
+                        <span style={{ fontSize: 12, fontWeight: activeFolderId === 'dashboard' ? 600 : 400, color: activeFolderId === 'dashboard' ? '#e0e0e0' : '#9ca3af' }}>
+                            Trang chủ
+                        </span>
+                    </div>
+
+                    {/* ── All files button ── */}
                     <div
                         onClick={() => handleSelect(null)}
                         style={{
                             display: 'flex', alignItems: 'center', gap: 8,
                             padding: '8px 10px', borderRadius: 8, cursor: 'pointer',
+                            marginTop: 4,
                             background: activeFolderId === null ? '#16213e' : 'transparent',
                             borderLeft: activeFolderId === null ? '3px solid #E8830C' : '3px solid transparent',
                             transition: 'all 150ms',
@@ -772,6 +839,25 @@ export default function Sidebar({
                         <Home size={14} color={activeFolderId === null ? '#E8830C' : '#6b7280'} />
                         <span style={{ fontSize: 12, fontWeight: activeFolderId === null ? 600 : 400, color: activeFolderId === null ? '#e0e0e0' : '#9ca3af' }}>
                             Tất cả file
+                        </span>
+                    </div>
+
+                    <div
+                        onClick={() => handleSelect('starred')}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: 8,
+                            padding: '8px 10px', borderRadius: 8, cursor: 'pointer',
+                            marginTop: 4,
+                            background: activeFolderId === 'starred' ? '#16213e' : 'transparent',
+                            borderLeft: activeFolderId === 'starred' ? '3px solid #E8830C' : '3px solid transparent',
+                            transition: 'all 150ms',
+                        }}
+                        onMouseEnter={(e) => { if (activeFolderId !== 'starred') e.currentTarget.style.background = '#1a1a40'; }}
+                        onMouseLeave={(e) => { if (activeFolderId !== 'starred') e.currentTarget.style.background = 'transparent'; }}
+                    >
+                        <Star size={14} color={activeFolderId === 'starred' ? '#E8830C' : '#6b7280'} fill={activeFolderId === 'starred' ? '#E8830C' : 'none'} />
+                        <span style={{ fontSize: 12, fontWeight: activeFolderId === 'starred' ? 600 : 400, color: activeFolderId === 'starred' ? '#e0e0e0' : '#9ca3af' }}>
+                            Quan trọng
                         </span>
                     </div>
                 </div>
@@ -793,6 +879,7 @@ export default function Sidebar({
                                 return (
                                     <div
                                         key={folder.id}
+                                        className="sb-folder-row"
                                         style={S.folderRow(isActive, 0)}
                                         onClick={() => { handleSelect(folder.id); setSearchQuery(''); }}
                                         onContextMenu={(e) => handleContextMenu(e, folder)}
@@ -804,6 +891,26 @@ export default function Sidebar({
                                             <HighlightText text={folder.name} query={searchQuery} />
                                         </span>
                                         {folder.fileCount > 0 && <span style={S.badge}>{folder.fileCount}</span>}
+
+                                        {(folder.driveId || folder.id) && (
+                                            <a
+                                                href={`https://drive.google.com/drive/folders/${folder.driveId || folder.id}`}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="sb-drive-link"
+                                                onClick={(e) => { e.stopPropagation(); }}
+                                                style={{
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                    color: '#6b7280',
+                                                    marginLeft: '4px', flexShrink: 0,
+                                                }}
+                                                onMouseEnter={(e) => { e.currentTarget.style.color = '#38bdf8'; e.currentTarget.style.background = 'rgba(56, 189, 248, 0.1)'; }}
+                                                onMouseLeave={(e) => { e.currentTarget.style.color = '#6b7280'; e.currentTarget.style.background = 'transparent'; }}
+                                                title="Mở thư mục này trên Google Drive"
+                                            >
+                                                <ExternalLink size={11} />
+                                            </a>
+                                        )}
                                     </div>
                                 );
                             })
@@ -825,6 +932,7 @@ export default function Sidebar({
                                     activeFolderId={activeFolderId}
                                     expandedSet={expandedSet}
                                     searchQuery=""
+                                    appAsins={appAsins}
                                     onSelect={handleSelect}
                                     onToggle={handleToggle}
                                     onContextMenu={handleContextMenu}
@@ -843,33 +951,55 @@ export default function Sidebar({
                 {/* ── Footer: Create Folder ── */}
                 <div style={S.footer}>
                     {isCreatingFolder ? (
-                        <div style={{ display: 'flex', gap: 6 }}>
-                            <input
-                                ref={newFolderRef}
-                                value={newFolderName}
-                                onChange={(e) => setNewFolderName(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') handleNewFolder();
-                                    if (e.key === 'Escape') { setIsCreatingFolder(false); setNewFolderName(''); }
-                                }}
-                                placeholder="Tên folder..."
-                                style={{
-                                    flex: 1, fontSize: 12, padding: '6px 10px',
-                                    borderRadius: 6, border: '1px solid #E8830C',
-                                    background: '#12121f', color: '#e0e0e0', outline: 'none',
-                                    fontFamily: 'inherit',
-                                }}
-                            />
-                            <button
-                                onClick={handleNewFolder}
-                                style={{
-                                    padding: '6px 10px', borderRadius: 6, border: 'none',
-                                    background: '#E8830C', color: '#1a1a1a', fontSize: 12,
-                                    fontWeight: 600, cursor: 'pointer',
-                                }}
-                            >
-                                <Check size={14} />
-                            </button>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {appAsins?.length > 0 && (
+                                <select
+                                    onClick={e => e.stopPropagation()}
+                                    onMouseDown={e => e.stopPropagation()}
+                                    onChange={(e) => {
+                                        if (!e.target.value) return;
+                                        const asin = appAsins.find(a => (a.id || a.code) === e.target.value);
+                                        if (asin) {
+                                            const catPrefix = asin.category ? `[${asin.category}] ` : '';
+                                            setNewFolderName(`${catPrefix}${asin.code} - ${asin.productName || ''}`.trim());
+                                            setTimeout(() => newFolderRef.current?.focus(), 50);
+                                        }
+                                    }}
+                                    style={{ width: '100%', fontSize: 11, padding: '4px 8px', borderRadius: 4, background: '#12121f', color: '#9ca3af', border: '1px solid #2a2a3e', outline: 'none' }}
+                                >
+                                    <option value="">Chọn tên ASIN...</option>
+                                    {appAsins.map(a => <option key={a.id || a.code} value={a.id || a.code}>{a.code} - {a.productName || ''}</option>)}
+                                </select>
+                            )}
+                            <div style={{ display: 'flex', gap: 6, width: '100%' }}>
+                                <input
+                                    ref={newFolderRef}
+                                    value={newFolderName}
+                                    title={newFolderName}
+                                    onChange={(e) => setNewFolderName(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') handleNewFolder();
+                                        if (e.key === 'Escape') { setIsCreatingFolder(false); setNewFolderName(''); }
+                                    }}
+                                    placeholder="Tên folder..."
+                                    style={{
+                                        flex: 1, minWidth: 0, width: '100%', fontSize: 12, padding: '6px 10px',
+                                        borderRadius: 6, border: '1px solid #E8830C',
+                                        background: '#12121f', color: '#e0e0e0', outline: 'none',
+                                        fontFamily: 'inherit',
+                                    }}
+                                />
+                                <button
+                                    onClick={handleNewFolder}
+                                    style={{
+                                        padding: '6px 10px', borderRadius: 6, border: 'none',
+                                        background: '#E8830C', color: '#1a1a1a', fontSize: 12,
+                                        fontWeight: 600, cursor: 'pointer', flexShrink: 0
+                                    }}
+                                >
+                                    <Check size={14} />
+                                </button>
+                            </div>
                         </div>
                     ) : (
                         <button

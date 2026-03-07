@@ -27,6 +27,7 @@ export interface AssetFile {
     uploadedBy: string;
     status: FileStatus;
     kanbanStatus?: KanbanStatus;
+    isStarred?: boolean;
 }
 
 export interface Product {
@@ -44,6 +45,7 @@ export interface FolderNode {
     parentId: string | null;
     children: FolderNode[];
     type: 'product' | 'learning' | 'archive' | 'subfolder';
+    isStarred?: boolean;
 }
 
 export interface FolderMeta {
